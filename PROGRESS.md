@@ -26,4 +26,28 @@
 
 ##Chapter 4
 (At first 25 mins)
-- Main
+- ~~Main~~
+- ~~Bonus 1~~
+- ~~Bonus 2~~
+- ~~Bonus 3~~
+- ~~Bonus 4~~
+- Bonus 5
+- Bonus 6
+- ~~Bonus 7~~
+- ~~Bonus 8~~
+- ~~Bonus 9~~
+
+##Chapter 5
+(At second 25 mins)
+- ~~Main~~
+
+##Chapter 6
+- ~~Main~~
+- Bonus 1
+- Bonus 2
+- Bonus 3
+- Bonus 4
+- Bonus 5
+- Bonus 6
+- Bonus 7
+- Bonus 8
