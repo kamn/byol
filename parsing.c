@@ -72,6 +72,11 @@ long eval(mpc_ast_t* t) {
   //store thrid and future children in x
   long x = eval(t->children[2]);
 
+  //If only (- 1) then return -1
+  if(strstr(op, "-") && t->children_num == 4) {
+    return -x;
+  }
+
   int i = 3;
   while (strstr(t->children[i]->tag, "expr")) {
     x = eval_op(x, op, eval(t->children[i]));
