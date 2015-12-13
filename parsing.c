@@ -126,7 +126,9 @@ lval* lval_read(mpc_ast_t* t) {
 
   lval* x = NULL;
   //if root
-  if(strcmp(t->tag, ">") == 0) { x = lval_sexpr(); }
+  if(strcmp(t->tag, ">") == 0 && strstr(t->children[1]->tag, "sexpr")) {
+    return lval_read(t->children[1]);
+  }
   if(strstr(t->tag, "sexpr"))  { x = lval_sexpr(); }
   
   for(int i = 0; i < t->children_num; i++) {
@@ -139,7 +141,6 @@ lval* lval_read(mpc_ast_t* t) {
   }
   return x;
 }
-
 
 void lval_print(lval* v);
 
@@ -166,72 +167,113 @@ void lval_print(lval* v) {
 
 void lval_println(lval* v) { lval_print(v); putchar('\n'); }
 
-lval* eval_op(lval* x, char* op, lval* y) {
+lval* lval_pop(lval* v, int i) {
+  lval* x = v->cell[i];
+
+  memmove(&v->cell[i], &v->cell[i+1], sizeof(lval*) * (v->count-i-1));
   
-  if(x->type == LVAL_ERR) { return x; }
-  if(y->type == LVAL_ERR) { return y; }
+  v->count--;
 
-  if(strcmp(op, "+") == 0) { return lval_num(x->num + y->num); }
-  if(strcmp(op, "-") == 0) { return lval_num(x->num - y->num); }
-  if(strcmp(op, "*") == 0) { return lval_num(x->num * y->num); }
-  if(strcmp(op, "/") == 0) {
-    return y->num == 0
-      ? lval_err("Divide By Zero")
-      : lval_num(x->num / y->num); 
-  }
-
-  //TODO: Add lval stuff
-  if(strcmp(op, "%") == 0) { 
-    return y->num == 0
-      ? lval_err("Modulo By Zero")
-      : lval_num(x->num % y->num);
-  }
-  if(strcmp(op, "^") == 0) { 
-    long val = x->num;
-    for(int i = 1; i < y->num; i++){
-      val = val * x->num;
-    }
-    return lval_num(val);
-  }
-  if(strcmp(op, "min") == 0) { return lval_num(x->num > y->num ? y->num : x->num); }
-  if(strcmp(op, "max") == 0) { return lval_num(x->num < y->num ? y->num : x->num); }
-
-  return lval_err("Bad Symbol");
+  v->cell = realloc(v->cell, sizeof(lval*) * v->count);
+  return x;
 }
 
-lval* eval(mpc_ast_t* t) {
-
-  //If it is a number return
-  if(strstr(t->tag, "number")) {
-
-    errno = 0;
-    long x = strtol(t->contents, NULL, 10);
-    return errno != ERANGE ? lval_num(x) : lval_err("Bad Number");
-  }
-
-  if(strstr(t->children[1]->tag, "sexpr")) {
-    return eval(t->children[1]);
-  }
-
-  //Operator is second child
-  char* op = t->children[1]->contents;
+lval* builtin_op(lval* a, char* op) {
   
-  //store thrid and future children in x
-  lval* x = eval(t->children[2]);
-
-  //If only (- 1) then return -1
-  //TODO: Fix with errors
-  if(strstr(op, "-") && t->children_num == 4) {
-    return lval_num(-x->num);
+  //Confirm all are numbers
+  for (int i = 0; i < a->count; i++) {
+    if(a->cell[i]->type != LVAL_NUM) {
+      lval_del(a);
+      return lval_err("Cannot operate on non-number");
+    }
   }
 
-  int i = 3;
-  while (strstr(t->children[i]->tag, "expr")) {
-    x = eval_op(x, op, eval(t->children[i]));
-    i++;
+  lval* x = lval_pop(a, 0);
+
+  if((strcmp(op, "-") == 0) && a->count == 0) {
+    x->num = -x->num;
   }
 
+  while(a->count > 0) {
+
+    lval* y = lval_pop(a, 0);
+    
+    if(strcmp(op, "+") == 0) { x->num += y->num; }
+    if(strcmp(op, "-") == 0) { x->num -= y->num; }
+    if(strcmp(op, "*") == 0) { x->num *= y->num; }
+    if(strcmp(op, "/") == 0) {
+      if(y->num == 0) {
+        lval_del(x);
+        lval_del(y);
+        x = lval_err("Division By Zero");
+      } else {
+        x->num /= y->num;
+      }
+    }
+
+    //TODO: Add lval stuff
+    if(strcmp(op, "%") == 0) { 
+      return y->num == 0
+        ? lval_err("Modulo By Zero")
+        : lval_num(x->num % y->num);
+    }
+    if(strcmp(op, "^") == 0) { 
+      long val = x->num;
+      for(int i = 1; i < y->num; i++){
+        val = val * x->num;
+      }
+      return lval_num(val);
+    }
+    if(strcmp(op, "min") == 0) { return lval_num(x->num > y->num ? y->num : x->num); }
+    if(strcmp(op, "max") == 0) { return lval_num(x->num < y->num ? y->num : x->num); }
+
+    lval_del(y);
+  }
+  lval_del(a);
   return x;
+}
+
+lval* lval_take(lval* v, int i) {
+  lval* x = lval_pop(v, i);
+  lval_del(v);
+  return x;
+}
+
+lval* lval_eval(lval* v);
+
+lval* lval_eval_sexpr(lval* v) {
+  
+  for(int i = 0; i < v->count; i++) {
+    v->cell[i] = lval_eval(v->cell[i]);
+  }
+
+  //Erro checking
+  for(int i = 0; i< v->count; i++) {
+    if(v->cell[i]->type == LVAL_ERR) { return lval_take(v, i); }
+  }
+
+  //empty
+  if(v->count == 0) { return v; }
+
+  //If single
+  if(v->count == 1) { return lval_take(v, 0); }
+
+  //ensure first is a symbol
+  lval* f = lval_pop(v, 0);
+  if(f->type != LVAL_SYM) {
+    lval_del(f);
+    lval_del(v);
+    return lval_err("S-expression does not start with a symbol");
+  }
+
+  lval* result = builtin_op(v, f->sym);
+  lval_del(f);
+  return result;
+}
+
+lval* lval_eval(lval* v) {
+  if(v->type == LVAL_SEXPR) { return lval_eval_sexpr(v); }
+  return v;
 }
 
 
@@ -249,7 +291,7 @@ int main(int argc, char** argv) {
       symbol    : '+' | '-' | '*' | '/' | '%' | '^' | \"min\" | \"max\" ;                 \
       sexpr     : '(' <expr>* ')' ;                       \
       expr      : <number> | <symbol> | <sexpr> ;         \
-      risky     : /^/ <expr> /$/ ;                        \
+      risky     : /^/ <sexpr> /$/ ;                        \
     ", Number, Symbol, Sexpr, Expr, Risky); 
 
 
@@ -269,11 +311,9 @@ int main(int argc, char** argv) {
     mpc_result_t r;
     if(mpc_parse("<stdin>", input, Risky, &r)) {
       //On success
-      lval* x = lval_read(r.output);
+      lval* x = lval_eval(lval_read(r.output));
       lval_println(x);
       lval_del(x);
-      //lval result = eval(r.output);
-      //lval_println(result);
       mpc_ast_delete(r.output);
     } else {
       //On error

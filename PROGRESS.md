@@ -80,4 +80,17 @@
 
 ##Chapter 9
 (at sixth 25 mins)
+(At seventh 25 mins)
+(At eigth 25 mins)
+- ~~Main~~
+- Bonus 1
+- Bonus 2
+- Bonus 3
+- Bonus 4
+- Bonus 5
+- Bonus 6
+- Bonus 7
+- Bonus 8
+
+#Chapter 10
 - Main
