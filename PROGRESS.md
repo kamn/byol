@@ -92,7 +92,7 @@
 - Bonus 7
 - Bonus 8
 
-#Chapter 10
+##Chapter 10
 - ~~Main~~
 - Bonus 1
 - Bonus 2
@@ -102,3 +102,14 @@
 - Bonus 6
 - Bonus 7
 - ~~Bonus 8~~
+
+##Chapter 11
+- ~~Main~~
+
+##Chapter 12
+- ~~Main~~
+- Bonus 1
+- Bonus 2
+- Bonus 3
+- Bonus 4
+- Bonus 5
