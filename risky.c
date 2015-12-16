@@ -479,34 +479,32 @@ lval* lval_call(lenv* e, lval* f, lval* a) {
       lval_del(nsym);
       break;
     }
-
-    if(f->formals->count > 0 &&
-      strcmp(f->formals->cell[0]->sym, "&") == 0) {
-      
-      if(f->formals->count != 2) {
-        return lval_err("Function format invalid. "
-          "Symbol '&' not followed by single symbol.");
-      }
-
-      lval_del(lval_pop(f->formals, 0));
-
-      lval* sym = lval_pop(f->formals, 0);
-      lval* val = lval_qexpr();
-
-      lenv_put(f->env, sym, val);
-      lval_del(sym);
-      lval_del(val);
-    }
-
     lval* val = lval_pop(a, 0);
-
     lenv_put(f->env, sym, val);
-    
     lval_del(sym);
     lval_del(val);
   }
 
   lval_del(a);
+
+  if(f->formals->count > 0 &&
+    strcmp(f->formals->cell[0]->sym, "&") == 0) {
+    
+    if(f->formals->count != 2) {
+      return lval_err("Function format invalid. "
+        "Symbol '&' not followed by single symbol.");
+    }
+
+    lval_del(lval_pop(f->formals, 0));
+
+    lval* sym = lval_pop(f->formals, 0);
+    lval* val = lval_qexpr();
+
+    lenv_put(f->env, sym, val);
+    lval_del(sym);
+    lval_del(val);
+  }
+
   if (f->formals->count == 0) {
     f->env->par = e;
 
@@ -1038,6 +1036,8 @@ void lenv_add_std_fns(mpc_parser_t* Risky, lenv* e) {
   //Macro?
   lenv_add_std(Risky, e, "(fun {apply f xs} {eval (join (list f) xs)})");
   lenv_add_std(Risky, e, "(fun {pack f & xs} {f xs})");
+  lenv_add_std(Risky, e, "(def {curry} apply)");
+  lenv_add_std(Risky, e, "(def {uncurry} pack)");
 
   //Atoms
   lenv_add_std(Risky, e, "(def {nil} {})");
