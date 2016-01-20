@@ -28,6 +28,7 @@
 #endif
 
 
+int REPL = 1;
 //Read history hack for windows
 #ifdef _WIN32
 #include <string.h>
@@ -77,7 +78,7 @@ typedef struct lval {
   int type;
 
   //Basic
-  long num;  
+  long num;
   char* err;
   char* sym;
   char* str;
@@ -94,7 +95,6 @@ typedef struct lval {
 
 /** =================
 Beginning of Pre-defs
-
 ===================== */
 
 void lval_del(lval* v); 
@@ -106,13 +106,11 @@ lval* builtin_list(lenv* e, lval* a);
 
 /** =================
 End of Pre-defs
-
 ===================== */
 
 
 /** =================
 Beginning of Enviroment Functions
-
 ===================== */
 
 struct lenv {
@@ -137,11 +135,11 @@ lval* lenv_get(lenv* e, lval* k) {
       return lval_copy(e->vals[i]);
     }
   }
-  
+
   if(e->par) {
     return lenv_get(e->par, k);
   } else {
-    return lval_err("Unbound symbol");
+    return lval_err("Unbound symbol '%s'", k->sym);
   }
 }
 
@@ -194,10 +192,7 @@ void lenv_del(lenv* e) {
 
 /** =================
 End of Enviroment Functions
-
 ===================== */
-
-int REPL = 1;
 
 char* ltype_name(int t) {
   switch(t) {
@@ -227,7 +222,7 @@ lval* lval_eval(lenv* e, lval* v) {
     lval_del(v);
     return x;
   }
-  
+
   if(v->type == LVAL_SEXPR) { return lval_eval_sexpr(e, v); }
   return v;
 }
@@ -590,10 +585,14 @@ lval* lval_eval_sexpr(lenv* e, lval* v) {
   lval* f = lval_pop(v, 0);
 
   if(f->type != LVAL_FUN) {
+    lval_println(f);
+    lval* err = lval_err(
+    "S-Expression starts with incorrect type."
+    "Got %s, Expected %s.",
+    ltype_name(f->type), ltype_name(LVAL_FUN));
     lval_del(f);
     lval_del(v);
-    //TODO: Update error
-    return lval_err("First element is not a function");
+    return err;
   }
 
   lval* result = lval_call(e, f, v);
@@ -690,8 +689,7 @@ lval* builtin_list(lenv* e, lval* a) {
 lval* builtin_eval(lenv* e, lval* a) {
   LASSERT(a, a->count == 1,
     "Function 'eval' passed too many arguments");
-  LASSERT(a, a->cell[0]->type == LVAL_QEXPR,
-    "Function 'eval' passed incorrect type");
+  LASSERT_TYPE("eval", a, 0, LVAL_QEXPR);
 
   lval* x = lval_take(a, 0);
   x->type = LVAL_SEXPR;
@@ -926,8 +924,7 @@ lval* builtin_load(lenv* e, lval* a) {
 
     while(expr->count) {
       lval* x = lval_eval(e, lval_pop(expr, 0));
-      
-      //lval_println(x);
+
       if(x->type == LVAL_ERR) { lval_println(x); }
       lval_del(x);
     }
@@ -1009,6 +1006,7 @@ void lenv_add_builtins(lenv* e) {
   lenv_add_builtin(e, "-", builtin_minus);
   lenv_add_builtin(e, "*", builtin_multi);
   lenv_add_builtin(e, "/", builtin_div);
+
 }
 
 /** =================
@@ -1047,6 +1045,35 @@ void lenv_add_std_fns(mpc_parser_t* Risky, lenv* e) {
   lenv_add_std(Risky, e, "(fun {inc x} {+ x 1})");
   lenv_add_std(Risky, e, "(fun {dec x} {- x 1})");
 
+  lenv_add_std(Risky, e, "(fun {not x} {- 1 x})");
+  lenv_add_std(Risky, e, "(fun {or x y} {+ x y})");
+  lenv_add_std(Risky, e, "(fun {and x y} {* x y})");
+
+  lenv_add_std(Risky, e, "(fun {fst l} {eval (head l)})");
+  lenv_add_std(Risky, e, "(fun {snd l} {eval (head (tail l))})");
+  lenv_add_std(Risky, e, "(fun {trd l} {eval (head (tail (tail l)))})");
+  lenv_add_std(Risky, e, "(fun {len l} {if (== l nil) {0} {+ 1 (len (tail l))}})");
+  lenv_add_std(Risky, e, "(fun {nth n l} {if (== n 0) {fst l} {nth (- n 1) (tail l)}})");
+  lenv_add_std(Risky, e, "(fun {last l} {nth (- (len l) 1) l})");
+
+  lenv_add_std(Risky, e, "(fun {map f l} \
+                            {if (== l nil)    \
+                              {nil}           \
+                              {join (list (f (fst l))) (map f (tail l))}})");
+  
+  lenv_add_std(Risky, e, "(fun {filter f l} \
+                            {if (== l nil)  \
+                              {{}}         \
+                              {join         \
+                                (if (f (fst l))     \
+                                    {list (fst l)}         \
+                                    {{}})          \
+                                (filter f (tail l))}})");
+
+  lenv_add_std(Risky, e, "(fun {range start end}  \
+                            {if (> start end)    \
+                                {{}}              \
+                                {join (list start) (range (inc start) end)}})");
 }
 
 
@@ -1077,11 +1104,11 @@ int main(int argc, char** argv) {
 
   lenv* e = lenv_new();
   lenv_add_builtins(e);
-  
+
   lenv_add_std_fns(Risky, e);
 
   if(argc >= 2) {
-    
+
     for(int i = 1; i < argc; i++) {
       lval* args = lval_add(lval_sexpr(), lval_str(argv[i]));
 
@@ -1092,7 +1119,7 @@ int main(int argc, char** argv) {
     }
   } else {
     //Version and Exit info
-    puts("Risky version 0.0.0.0.12");
+    puts("Risky version 0.0.0.0.16");
     printf("Running on %s\n", SYS_NAME);
     puts("Press Ctrl-c to Exit\n");
     while(REPL) {
